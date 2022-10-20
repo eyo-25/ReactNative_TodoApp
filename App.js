@@ -13,26 +13,48 @@ import {
 import { theme } from "./color";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Fontisto } from "@expo/vector-icons";
+import { Foundation } from "@expo/vector-icons";
+import ToDoCard from "./ToDo";
 
 const STORAGE_KEY = "@toDos";
+const ISWORK_KEY = "@isWork";
 
 export default function App() {
-  const [working, setWorking] = useState(true);
+  const [working, setWorking] = useState(null);
   const [text, setText] = useState("");
   const [toDos, setToDos] = useState({});
 
   useEffect(() => {
     loadToDos();
+    loadIsWork();
   }, []);
 
-  const travel = () => setWorking(false);
-  const work = () => setWorking(true);
+  const travel = async () => {
+    setWorking(false);
+    await AsyncStorage.setItem(ISWORK_KEY, JSON.stringify(false));
+  };
+  const work = async () => {
+    setWorking(true);
+    await AsyncStorage.setItem(ISWORK_KEY, JSON.stringify(true));
+  };
+  const loadIsWork = async () => {
+    try {
+      const s = await AsyncStorage.getItem(ISWORK_KEY);
+      if (s === null) {
+        setWorking(true);
+      } else {
+        setWorking(JSON.parse(s));
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
   const onChangeText = (payload) => setText(payload);
   const addToDo = async () => {
     if (text === "") return;
     const newToDos = {
       ...toDos,
-      [Date.now()]: { text: text, working: working },
+      [Date.now()]: { text: text, working: working, finish: false },
     };
     setToDos(newToDos);
     await saveToDos(newToDos);
@@ -54,22 +76,6 @@ export default function App() {
     } catch (e) {
       console.log(e);
     }
-  };
-  const deleteToDo = (key) => {
-    Alert.alert("Delete To Do?", "Are you sure?", [
-      { text: "Cancle" },
-      {
-        text: "Yes Sir",
-        onPress: async () => {
-          // deep copy > state는 절대로 mutate하면 안되기에 새로운 object로 deep copy하여 변형
-          const newToDos = { ...toDos };
-          delete newToDos[key];
-          setToDos(newToDos);
-          await saveToDos(newToDos);
-        },
-      },
-    ]);
-    return;
   };
   return (
     <View style={styles.container}>
@@ -119,10 +125,15 @@ export default function App() {
             {Object.keys(toDos).map((key) =>
               toDos[key].working === working ? (
                 <View style={styles.toDo} key={key}>
-                  <Text style={styles.toDoText}>{toDos[key].text}</Text>
-                  <TouchableOpacity onPress={() => deleteToDo(key)}>
-                    <Fontisto name="trash" size={20} color={theme.toDoBg} />
-                  </TouchableOpacity>
+                  <ToDoCard
+                    toDos={toDos}
+                    setToDos={setToDos}
+                    id={key}
+                    isFinish={toDos[key].finish}
+                    text={toDos[key].text}
+                    setText={setText}
+                    saveToDos={saveToDos}
+                  />
                 </View>
               ) : null
             )}
@@ -166,8 +177,13 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   toDoText: {
-    color: "white",
+    marginLeft: 15,
     fontSize: 16,
     fontWeight: "500",
+  },
+  editInput: {
+    width: "60%",
+    fontSize: 16,
+    color: "white",
   },
 });
